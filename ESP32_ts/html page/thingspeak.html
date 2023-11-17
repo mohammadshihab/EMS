@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background-color: #f2f2f2;
+}
+
+.container {
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: #fff;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+}
+
+h1 {
+  text-align: center;
+}
+
+.input-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.input-container h3 {
+  margin-right: 10px;
+}
+
+.input-container input[type="number"] {
+  padding: 10px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  width: 200px;
+}
+
+.input-container button {
+  margin-left: 10px;
+  padding: 10px 20px;
+  font-size: 16px;
+  border: none;
+  border-radius: 4px;
+  background-color: #4CAF50;
+  color: white;
+  cursor: pointer;
+}
+
+.update-message {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.balance-container {
+  text-align: center;
+}
+
+.balance-container h1 {
+  font-size: 24px;
+  margin-bottom: 10px;
+}
+
+.balance-container span {
+  font-size: 18px;
+  font-weight: bold;
+}
+
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Balance Summary</h1>
+  
+  <div class="input-container">
+    <h3>Recharged Amount:</h3>
+    <input type="number" id="data1" placeholder="Enter amount">
+    <button onclick="updateBalacne()">Submit</button>
+  </div>
+  
+  <p class="update-message" id="updateMessage"></p>
+  
+  <div class="balance-container">
+    <h1>Remaining Balance:</h1>
+    <span id="value-container"></span>
+  </div>
+</div>
+
+<script>
+  function updateBalacne() {
+    var data1 = document.getElementById("data1").value;
+    var url = "https://api.thingspeak.com/update?api_key=W6VI52E6OW5TMXWT&field1=" + data1;
+
+    fetch(url)
+      .then(response => {
+        if (response.ok) {
+          return response.json();
+        } else {
+          throw new Error('Failed to update data.');
+        }
+      })
+      .then(data => {
+        if (data === 0) {
+          document.getElementById("updateMessage").textContent = "Failed to update data.";
+        } else {
+          document.getElementById("updateMessage").textContent = "Data updated successfully!";
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        document.getElementById("updateMessage").textContent = "Failed to update data.";
+      });
+  }
+  
+  function fetchLEDStatus() {
+    fetch('https://api.thingspeak.com/channels/2171468/feeds.json?results=1')
+      .then(response => {
+        if (response.ok) {
+          return response.json();
+        } else {
+          throw new Error('Failed to fetch LED status.');
+        }
+      })
+      .then(data => {
+        const lastEntry = data.feeds[0];
+        const value = lastEntry.field2;
+        document.getElementById('value-container').innerText = value;
+      })
+      .catch(error => {
+        console.error('Error:', error);
+      });
+  }
+  fetchLEDStatus();
+  setInterval(fetchLEDStatus, 5000);
+</script>
+
+</body>
+</html>

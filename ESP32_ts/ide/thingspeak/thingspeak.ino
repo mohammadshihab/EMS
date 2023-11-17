@@ -1,0 +1,139 @@
+#include "ThingSpeak.h"
+#include <WiFi.h>
+#include <HardwareSerial.h> //For serial communication
+HardwareSerial SerialPort(2); // For using UART2 
+
+// Replace your Wi-Fi credentials here
+const char* ssid = "Primo RX7 Mini";                 // Wi-Fi Name
+const char* password = "12345679";    //  Wi-Fi Password
+
+// Change your channel number here
+unsigned long channel = 2171468;          //  ThingSpeak Account Channel ID
+
+int data1 = 0;                            // Will be sent from the webpage
+int data2 = 10;                           // Initial value for field 2
+
+// Field numbers
+unsigned int fld1 = 1;                    // Field 1
+unsigned int fld2 = 2;                    // Field 2
+
+const char* myCounterReadAPIKey = "E1QAU4OS95XCRL51";
+const char* myCounterWriteAPIKey = "W6VI52E6OW5TMXWT";
+
+unsigned long previousData2Time = 0; // Variable to store the previous time for data2 writing
+const unsigned long data2Interval = 30000; // Interval for writing data2 in milliseconds
+
+
+WiFiClient client;
+
+void setup() {
+  pinMode(14,OUTPUT); //wi-fi connectivity indicator
+  Serial.begin(9600);
+  Serial2.begin(9600, SERIAL_8N1, 16, 17);  // connected with stm32
+  
+  delay(100);
+  // We start by connecting to a Wi-Fi network
+  Serial.println();
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  digitalWrite(14,HIGH); //wi-fi indicator
+
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+  Serial.print("Netmask: ");
+  Serial.println(WiFi.subnetMask());
+  Serial.print("Gateway: ");
+  Serial.println(WiFi.gatewayIP());
+
+  ThingSpeak.begin(client);
+}
+
+ int data1Prev = 0;  // Flag to track if data1 has been received
+ char data1Str[8];   // need for data1
+
+
+// data1 is the recharge amount sent from website which will be sent to stm32
+ void Data1Fnc(){ 
+    data1 = ThingSpeak.readFloatField(channel, fld1,myCounterReadAPIKey);
+    if(data1!=data1Prev){   // to prevent the response for same data reading
+      sprintf(data1Str, "%05d", data1);
+      data1Str[5]='s';   // adding 's' as last value indicator
+      data1Str[6]='\0';
+      
+      Serial2.print(data1Str);   //sending value to stm32     
+      Serial.println(data1Str);
+      data1Prev=data1;
+      }
+  }
+
+
+  // data2 will be the remaining balance which will be shown in website
+  void Data2Fnc(){
+    unsigned long currentTime2 = millis(); // Get the current time
+    if (currentTime2 - previousData2Time >= data2Interval) {  //to publish the data in website in 30 second interval
+      ThingSpeak.writeField(channel, fld2, data2, myCounterWriteAPIKey);
+      //data2 += 4;
+      Serial.println(data2);
+      previousData2Time = currentTime2; // Update the previous time
+    }
+  }
+
+
+ // this is for sorting the received serial data from stm32
+ void Data2withSorting(){
+    char receivedData[6]; // Temporary value for serial.2 receiving data
+    
+    if (Serial2.available() >= 6) { // Check if there are at least 6 bytes available on UART2
+    Serial2.readBytes(receivedData,7); // If the 6 bytes are available it will try to receive 8 bytes, hence digit will move from left to right and change their position
+    //Serial.println(receivedData);
+    receivedData[6] = '\0'; // Setting the null terminator at last position
+
+   //From here to till last is for sorting received data where the 's' should be the last char
+   char str[100]={'0'};
+   strcpy(str,receivedData);
+   int len = strlen(str);
+   int sp;
+   char str2[100]={'0'};
+   for(int i=0; i<=len-1; i++){
+       if(str[i]=='s'){
+           sp=i;
+           break;
+       }
+   }
+   for(int i=len-1; i>=0; i--){
+       str2[i]=str[sp];
+       sp--;
+       if(sp==-1){
+           sp=len-1;
+       }
+   }
+   char recDataSorted[10]={'0'};
+   strcpy(recDataSorted,str2);
+   
+   data2 = atoi(recDataSorted); // Convert string to integer
+   Serial.println(data2); 
+   Serial.println(receivedData);
+   Data2Fnc(); // to publish the value into website as remaining balance
+  }
+  
+  }
+ 
+
+void loop() {
+  Data1Fnc();
+  Data2withSorting();
+  delay(1000);
+}
+
+
+
+
